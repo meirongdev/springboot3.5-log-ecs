@@ -1,0 +1,45 @@
+spring:
+  application:
+    name: spring-log-demo
+  threads:
+    virtual:
+      enabled: true   # Java 25 Virtual Threads
+
+server:
+  port: 8080
+
+# ── Structured ECS logging (Spring Boot 3.5 built-in) ──────────────────────
+logging:
+  level:
+    root: INFO
+    dev.meirong: INFO
+    org.springframework.web: WARN
+  structured:
+    format:
+      console: ecs
+      file: ecs
+    ecs:
+      service:
+        name: ${spring.application.name}
+        version: "@project.version@"
+        environment: ${spring.profiles.active:local}
+  file:
+    name: logs/app.json
+  logback:
+    rollingpolicy:
+      max-file-size: 100MB
+      total-size-cap: 2GB
+      max-history: 30
+
+# ── Actuator ────────────────────────────────────────────────────────────────
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,metrics,loggers
+  endpoint:
+    health:
+      show-details: always
+  tracing:
+    sampling:
+      probability: 1.0   # 100% sampling for demo; tune in production

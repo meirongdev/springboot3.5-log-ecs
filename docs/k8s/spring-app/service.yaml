@@ -1,0 +1,18 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: spring-app
+  namespace: logging
+  labels:
+    app: spring-app
+    app.kubernetes.io/part-of: log-demo
+spec:
+  selector:
+    app: spring-app
+  ports:
+    - name: http
+      port: 8080
+      targetPort: 8080
+      protocol: TCP
+      nodePort: 30080
+  type: NodePort

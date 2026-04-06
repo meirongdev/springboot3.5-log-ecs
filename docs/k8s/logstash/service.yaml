@@ -1,0 +1,22 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: logstash
+  namespace: logging
+  labels:
+    app: logstash
+    app.kubernetes.io/part-of: log-demo
+spec:
+  selector:
+    app: logstash
+  ports:
+    - name: beats
+      port: 5044
+      targetPort: 5044
+      protocol: TCP
+    - name: monitoring
+      port: 9600
+      targetPort: 9600
+      protocol: TCP
+  # ClusterIP: only reachable within the cluster (Filebeat → Logstash)
+  type: ClusterIP

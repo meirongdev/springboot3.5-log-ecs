@@ -1,0 +1,123 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: spring-app
+  namespace: logging
+  labels:
+    app: spring-app
+    app.kubernetes.io/name: spring-app
+    app.kubernetes.io/version: "1.0.0"
+    app.kubernetes.io/part-of: log-demo
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: spring-app
+  template:
+    metadata:
+      labels:
+        app: spring-app
+        app.kubernetes.io/name: spring-app
+      annotations:
+        # Trigger Filebeat add_kubernetes_metadata enrichment
+        co.elastic.logs/enabled: "true"
+    spec:
+      # ── Shared log volume ───────────────────────────────────────────────
+      volumes:
+        - name: app-logs
+          emptyDir: {}
+        - name: spring-config
+          configMap:
+            name: spring-app-config
+        - name: filebeat-config
+          configMap:
+            name: filebeat-config
+
+      containers:
+        # ── Container 1: Spring Boot Application ────────────────────────
+        - name: spring-app
+          # Replace with your actual image once built
+          image: meirongdev/spring-log-demo:1.0.0
+          imagePullPolicy: IfNotPresent
+          ports:
+            - name: http
+              containerPort: 8080
+              protocol: TCP
+          env:
+            - name: JAVA_TOOL_OPTIONS
+              value: >-
+                --enable-preview
+                -XX:+UseZGC
+                -XX:MaxRAMPercentage=75
+            - name: SPRING_CONFIG_LOCATION
+              value: "file:/config/application.yaml"
+            - name: HOSTNAME
+              valueFrom:
+                fieldRef:
+                  fieldPath: spec.nodeName
+          volumeMounts:
+            - name: app-logs
+              mountPath: /logs
+            - name: spring-config
+              mountPath: /config
+              readOnly: true
+          resources:
+            requests:
+              cpu: 250m
+              memory: 256Mi
+            limits:
+              cpu: 500m
+              memory: 512Mi
+          readinessProbe:
+            httpGet:
+              path: /actuator/health/readiness
+              port: 8080
+            initialDelaySeconds: 15
+            periodSeconds: 10
+            failureThreshold: 3
+          livenessProbe:
+            httpGet:
+              path: /actuator/health/liveness
+              port: 8080
+            initialDelaySeconds: 30
+            periodSeconds: 20
+            failureThreshold: 3
+
+        # ── Container 2: Filebeat Sidecar ───────────────────────────────
+        - name: filebeat
+          image: docker.elastic.co/beats/filebeat:8.17.0
+          args:
+            - "-c"
+            - "/etc/filebeat/filebeat.yaml"
+            - "-e"
+            - "--strict.perms=false"
+          env:
+            - name: NODE_NAME
+              valueFrom:
+                fieldRef:
+                  fieldPath: spec.nodeName
+          volumeMounts:
+            - name: app-logs
+              mountPath: /logs
+              readOnly: true
+            - name: filebeat-config
+              mountPath: /etc/filebeat
+              readOnly: true
+          resources:
+            requests:
+              cpu: 50m
+              memory: 64Mi
+            limits:
+              cpu: 100m
+              memory: 128Mi
+          # Filebeat doesn't expose HTTP health; use process check
+          livenessProbe:
+            exec:
+              command:
+                - filebeat
+                - test
+                - config
+                - -c
+                - /etc/filebeat/filebeat.yaml
+            initialDelaySeconds: 30
+            periodSeconds: 60

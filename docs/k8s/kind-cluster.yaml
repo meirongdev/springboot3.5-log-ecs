@@ -1,0 +1,23 @@
+apiVersion: kind.x-k8s.io/v1alpha4
+kind: Cluster
+name: log-demo
+nodes:
+  - role: control-plane
+    # Port mappings to access services from the host
+    extraPortMappings:
+      - containerPort: 30080   # spring-app NodePort
+        hostPort: 30080
+        protocol: TCP
+      - containerPort: 30601   # opensearch-dashboards NodePort
+        hostPort: 30601
+        protocol: TCP
+      - containerPort: 30200   # opensearch NodePort
+        hostPort: 30200
+        protocol: TCP
+    # Give the control-plane node more resources for running the full stack
+    kubeadmConfigPatches:
+      - |
+        kind: InitConfiguration
+        nodeRegistration:
+          kubeletExtraArgs:
+            node-labels: "ingress-ready=true"

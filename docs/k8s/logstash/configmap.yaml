@@ -1,0 +1,117 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: logstash-pipeline
+  namespace: logging
+  labels:
+    app: logstash
+data:
+  pipeline.conf: |
+    input {
+      beats {
+        port => 5044
+        # Accept Filebeat connections
+        client_inactivity_timeout => 60
+      }
+    }
+
+    filter {
+      # ── ECS fields already present from Spring Boot / Filebeat ──────
+
+      # Ensure @timestamp comes from the ECS field, not Filebeat's ingest time
+      if [@timestamp] {
+        date {
+          match => ["@timestamp", "ISO8601"]
+          target => "@timestamp"
+        }
+      }
+
+      # Parse log.level to uppercase for consistent querying
+      if [log][level] {
+        mutate {
+          uppercase => ["[log][level]"]
+        }
+      }
+
+      # Add log pipeline metadata
+      mutate {
+        add_field => {
+          "[event][ingested]"  => "%{@timestamp}"
+          "[pipeline][name]"   => "spring-ecs"
+          "[pipeline][version]" => "1"
+        }
+      }
+
+      # Drop Filebeat internal monitoring events
+      if [type] == "monitoring" {
+        drop {}
+      }
+
+      # Remove fields added by Filebeat that are redundant in OpenSearch
+      mutate {
+        remove_field => ["agent", "input", "ecs"]
+      }
+    }
+
+    output {
+      elasticsearch {
+        hosts => ["http://opensearch:9200"]
+        # Daily rolling index
+        index => "spring-logs-%{+YYYY.MM.dd}"
+        # Don't try to manage template - OpenSearch handles this
+        manage_template => false
+      }
+
+      # Debug: also log to stdout in dev (remove in production)
+      stdout {
+        codec => dots
+      }
+    }
+
+  # OpenSearch index template — sets ECS mappings and lifecycle policy
+  index-template.json: |
+    {
+      "index_patterns": ["spring-logs-*"],
+      "priority": 100,
+      "template": {
+        "settings": {
+          "number_of_shards": 1,
+          "number_of_replicas": 0,
+          "index.refresh_interval": "5s"
+        },
+        "mappings": {
+          "dynamic_templates": [
+            {
+              "strings_as_keyword": {
+                "match_mapping_type": "string",
+                "mapping": { "type": "keyword", "ignore_above": 1024 }
+              }
+            },
+            {
+              "message_as_text": {
+                "match": "message",
+                "mapping": { "type": "text", "analyzer": "standard" }
+              }
+            }
+          ],
+          "properties": {
+            "@timestamp":                 { "type": "date" },
+            "log.level":                  { "type": "keyword" },
+            "log.logger":                 { "type": "keyword" },
+            "message":                    { "type": "text", "fields": { "keyword": { "type": "keyword", "ignore_above": 256 } } },
+            "service.name":               { "type": "keyword" },
+            "service.version":            { "type": "keyword" },
+            "service.environment":        { "type": "keyword" },
+            "trace.id":                   { "type": "keyword" },
+            "span.id":                    { "type": "keyword" },
+            "http.request.method":        { "type": "keyword" },
+            "http.response.status_code":  { "type": "integer" },
+            "url.path":                   { "type": "keyword" },
+            "process.thread.name":        { "type": "keyword" },
+            "kubernetes.namespace":       { "type": "keyword" },
+            "kubernetes.pod.name":        { "type": "keyword" },
+            "kubernetes.node.name":       { "type": "keyword" }
+          }
+        }
+      }
+    }
