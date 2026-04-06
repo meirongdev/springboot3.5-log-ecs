@@ -1,10 +1,51 @@
+# Maven
 target/
-logs/
-*.jar
+pom.xml.tag
+pom.xml.releaseBackup
+pom.xml.versionsBackup
+pom.xml.next
+release.properties
+dependency-reduced-pom.xml
+buildNumber.properties
+.mvn/timing.properties
+# If using Maven Wrapper, you might want to exclude the jar
+#!.mvn/wrapper/maven-wrapper.jar
+
+# Compiled class file
 *.class
 
+# Log file
+*.log
+logs/
+
+# Package Files #
+*.jar
+*.war
+*.nar
+*.ear
+*.zip
+*.tar.gz
+*.rar
+
+# IDEs
 .idea/
 *.iml
 .vscode/
+.project
+.classpath
+.settings/
+.factorypath
 
+# OS
 .DS_Store
+Thumbs.db
+
+# Tool-specific
+.qwen/
+.gemini/
+.agents/
+
+# Others
+.env
+.env.local
+.terraform/
