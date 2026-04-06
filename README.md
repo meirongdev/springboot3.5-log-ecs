@@ -99,7 +99,75 @@ make deploy
 
 This will build the Docker image and deploy the entire stack to your Kind cluster.
 
-### 3. Access Services
+### 3. Verify the Deployment
+
+Run the automated verification script to ensure all components are healthy:
+
+```bash
+make verify
+```
+
+This script performs the following checks:
+- Cluster connectivity
+- Pod health and readiness
+- OpenSearch cluster health (green/yellow/red)
+- Log index existence (`spring-logs-*`)
+- Log document count in OpenSearch
+- ECS field validation on sample documents
+- Test traffic generation to produce logs
+- OpenSearch Dashboards availability
+
+Expected output:
+```
+========================================
+  Logging Stack Verification
+========================================
+
+▶ Checking Kind cluster connectivity...
+  ✓ Connected to cluster: log-demo
+▶ Checking pod status in namespace 'logging'...
+  ✓ Pod 'opensearch-xxx' is Running (ready)
+  ✓ Pod 'opensearch-dashboards-xxx' is Running (ready)
+  ✓ Pod 'logstash-xxx' is Running (ready)
+  ✓ Pod 'spring-app-xxx' is Running (ready)
+▶ Checking OpenSearch cluster health...
+  ✓ OpenSearch cluster health: YELLOW (normal for single-node)
+▶ Checking for log indices matching 'spring-logs-*'...
+  ✓ Index exists: spring-logs-2026.04.06
+▶ Checking log document count...
+  ✓ Found 42 log documents in OpenSearch
+...
+========================================
+  Verification Summary
+========================================
+  Passed: 12
+  Failed: 0
+
+All checks passed! Logging stack is healthy.
+```
+
+### 4. Manual Verification (OpenSearch)
+
+If you want to inspect OpenSearch directly:
+
+```bash
+# Port-forward OpenSearch API
+kubectl -n logging port-forward svc/opensearch 9200:9200 &
+
+# Check cluster health
+curl -s http://localhost:9200/_cluster/health | jq .status
+
+# List indices
+curl -s http://localhost:9200/_cat/indices?v
+
+# Query log count
+curl -s http://localhost:9200/spring-logs-*/_count | jq .
+
+# View a sample log document
+curl -s http://localhost:9200/spring-logs-*/_search?size=1 | jq '.hits.hits[0]._source'
+```
+
+### 5. Access Services
 
 ```bash
 # OpenSearch Dashboards (http://localhost:5601)
@@ -112,7 +180,7 @@ kubectl -n logging port-forward svc/spring-app 8080:8080
 kubectl -n logging port-forward svc/opensearch 9200:9200
 ```
 
-### 4. Generate Test Logs
+### 6. Generate Test Logs
 
 ```bash
 # Trigger some HTTP calls to generate logs
@@ -121,13 +189,15 @@ curl http://localhost:8080/api/orders/123
 curl http://localhost:8080/api/error  # intentional error
 ```
 
-### 5. View in OpenSearch Dashboards
+### 7. View in OpenSearch Dashboards
 
 1. Open `http://localhost:5601`
-2. Go to **Stack Management** → **Index Patterns** → Create `spring-logs-*`
-3. Go to **Discover** to explore ECS-formatted logs
+2. Go to **Discover** → select `spring-logs-*` to explore ECS-formatted logs
 
-### 6. Cleanup
+> **Note:** The index pattern `spring-logs-*` is automatically created by `make verify`.
+> If it's missing, create it manually: **Stack Management** → **Index Patterns** → `spring-logs-*` (time field: `@timestamp`)
+
+### 8. Cleanup
 
 ```bash
 # View application logs

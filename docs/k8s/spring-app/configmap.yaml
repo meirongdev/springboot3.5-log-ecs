@@ -30,6 +30,7 @@ data:
 
     # ECS structured logging configuration
     logging:
+      config: file:/config-logback/logback-spring.xml
       structured:
         format:
           console: ecs
@@ -57,21 +58,44 @@ data:
   logback-spring.xml: |
     <?xml version="1.0" encoding="UTF-8"?>
     <configuration>
-      <!-- Spring Boot 3.5 built-in ECS structured appenders -->
-      <include resource="org/springframework/boot/logging/logback/structured-console-appender.xml"/>
-      <include resource="org/springframework/boot/logging/logback/structured-file-appender.xml"/>
+      <!-- CONSOLE: ECS structured JSON via Spring Boot's formatter -->
+      <appender name="CONSOLE" class="ch.qos.logback.core.ConsoleAppender">
+        <encoder class="org.springframework.boot.logging.logback.StructuredLogEncoder">
+          <format>ecs</format>
+        </encoder>
+      </appender>
 
-      <!-- Async wrapper: queueSize=1024, discardingThreshold=0 for virtual threads -->
-      <appender name="ASYNC" class="ch.qos.logback.classic.AsyncAppender">
+      <!-- FILE: ECS structured JSON with rolling -->
+      <appender name="FILE" class="ch.qos.logback.core.rolling.RollingFileAppender">
+        <file>${LOG_FILE:-/logs/app.log}</file>
+        <rollingPolicy class="ch.qos.logback.core.rolling.SizeAndTimeBasedRollingPolicy">
+          <fileNamePattern>/logs/app.%d{yyyy-MM-dd}.%i.log.gz</fileNamePattern>
+          <maxFileSize>100MB</maxFileSize>
+          <maxHistory>7</maxHistory>
+          <totalSizeCap>1GB</totalSizeCap>
+        </rollingPolicy>
+        <encoder class="org.springframework.boot.logging.logback.StructuredLogEncoder">
+          <format>ecs</format>
+        </encoder>
+      </appender>
+
+      <!-- Async wrappers for virtual-thread safety -->
+      <appender name="ASYNC_CONSOLE" class="ch.qos.logback.classic.AsyncAppender">
         <queueSize>1024</queueSize>
         <discardingThreshold>0</discardingThreshold>
         <includeCallerData>false</includeCallerData>
         <appender-ref ref="CONSOLE"/>
+      </appender>
+      <appender name="ASYNC_FILE" class="ch.qos.logback.classic.AsyncAppender">
+        <queueSize>1024</queueSize>
+        <discardingThreshold>0</discardingThreshold>
+        <includeCallerData>false</includeCallerData>
         <appender-ref ref="FILE"/>
       </appender>
 
       <root level="INFO">
-        <appender-ref ref="ASYNC"/>
+        <appender-ref ref="ASYNC_CONSOLE"/>
+        <appender-ref ref="ASYNC_FILE"/>
       </root>
     </configuration>
 
@@ -109,17 +133,13 @@ data:
             - logs_path:
                 logs_path: /logs/
 
-    output:
-      elasticsearch:
-        hosts: ["http://opensearch:9200"]
-        # Daily index
-        index: "spring-logs-%{+yyyy.MM.dd}"
-        # Retry on transient failures
-        protocol: "http"
-        # Disable index template management (OpenSearch handles this)
-        enabled: false
+    # Ship logs to Logstash (which forwards to OpenSearch)
+    output.logstash:
+      hosts: ["logstash:5044"]
+      # Compression for performance
+      compression_level: 3
 
-    # Disable template setup since we're using OpenSearch
+    # Disable template setup since Logstash/OpenSearch handles this
     setup.template.enabled: false
     setup.ilm.enabled: false
 

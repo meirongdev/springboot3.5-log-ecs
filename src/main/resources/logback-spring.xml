@@ -1,29 +1,31 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <!--
-  logback-spring.xml — Async appender for virtual-thread-safe, non-blocking logging.
+  logback-spring.xml — Async appenders for virtual-thread-safe, non-blocking logging.
   Key settings:
     queueSize=1024        — handles high virtual-thread concurrency
     discardingThreshold=0 — never silently drop WARN/INFO logs
 
   Uses Spring Boot 3.5 built-in StructuredLogEncoder for ECS JSON output.
+  Separate async wrappers for CONSOLE and FILE to avoid appender name conflicts.
 -->
 <configuration>
 
   <!-- Spring Boot 3.5 built-in ECS structured appenders -->
+  <!-- structured-console-appender.xml creates CONSOLE + ASNC (wrapping CONSOLE) -->
   <include resource="org/springframework/boot/logging/logback/structured-console-appender.xml"/>
   <include resource="org/springframework/boot/logging/logback/structured-file-appender.xml"/>
 
-  <!-- Async wrapper: decouples virtual-thread I/O from log writes -->
-  <appender name="ASYNC" class="ch.qos.logback.classic.AsyncAppender">
+  <!-- Async wrapper for FILE only (CONSOLE is already wrapped by Spring Boot's ASYNC) -->
+  <appender name="ASYNC_FILE" class="ch.qos.logback.classic.AsyncAppender">
     <queueSize>1024</queueSize>
     <discardingThreshold>0</discardingThreshold>
     <includeCallerData>false</includeCallerData>
-    <appender-ref ref="CONSOLE"/>
     <appender-ref ref="FILE"/>
   </appender>
 
   <root level="INFO">
     <appender-ref ref="ASYNC"/>
+    <appender-ref ref="ASYNC_FILE"/>
   </root>
 
 </configuration>

@@ -54,12 +54,15 @@ data:
     }
 
     output {
-      elasticsearch {
-        hosts => ["http://opensearch:9200"]
-        # Daily rolling index
-        index => "spring-logs-%{+YYYY.MM.dd}"
-        # Don't try to manage template - OpenSearch handles this
-        manage_template => false
+      # HTTP output: index each event individually via OpenSearch _doc API
+      # (ES output plugin is incompatible with OpenSearch in Logstash 8.x)
+      http {
+        url => "http://opensearch:9200/spring-logs-%{+YYYY.MM.dd}/_doc"
+        http_method => "post"
+        format => "json"
+        content_type => "application/json"
+        pool_max => 10
+        pool_max_per_route => 5
       }
 
       # Debug: also log to stdout in dev (remove in production)

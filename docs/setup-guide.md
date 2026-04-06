@@ -80,7 +80,30 @@ kubectl -n logging get pods -l app=spring-app
 
 ---
 
-## Step 3: Verify Log Flow
+## Step 3: Automated Verification
+
+After deployment, run the automated verification script to validate the entire logging stack:
+
+```bash
+make verify
+# or: ./scripts/verify-deploy.sh
+```
+
+This script checks:
+- ✅ Cluster connectivity
+- ✅ Pod health and readiness
+- ✅ OpenSearch cluster health
+- ✅ Log index existence (`spring-logs-*`)
+- ✅ Log document count
+- ✅ ECS field validation on sample documents
+- ✅ Test traffic generation
+- ✅ OpenSearch Dashboards availability
+
+If all checks pass, your logging stack is ready. If any check fails, refer to the troubleshooting section below.
+
+---
+
+## Step 4: Verify Log Flow (Manual)
 
 ### Check app is producing logs
 
@@ -125,24 +148,30 @@ curl -s http://localhost:9200/spring-logs-*/_search?size=1 | jq '.hits.hits[0]._
 
 ---
 
-## Step 4: Access OpenSearch Dashboards
+## Step 5: Access OpenSearch Dashboards
 
 ```bash
 kubectl -n logging port-forward svc/opensearch-dashboards 5601:5601 &
 open http://localhost:5601
 ```
 
-### Create Index Pattern
+### Index Pattern (Auto-created)
 
-1. **Stack Management** → **Index Management** → verify `spring-logs-YYYY.MM.dd` exists
-2. **Stack Management** → **Index Patterns** → **Create index pattern**
+The verification script (`make verify`) automatically creates the `spring-logs-*` index pattern for you. Just go to **Discover** and start exploring.
+
+If you need to create it manually or standalone:
+```bash
+make setup-dashboards
+```
+
+Or via Dashboards UI:
+1. **Stack Management** → **Index Patterns** → **Create index pattern**
    - Pattern: `spring-logs-*`
    - Time field: `@timestamp`
-3. **Discover** → select `spring-logs-*` → explore logs
 
 ---
 
-## Step 5: Generate Load
+## Step 6: Generate Load
 
 ```bash
 # Port-forward the app

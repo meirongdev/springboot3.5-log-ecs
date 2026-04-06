@@ -29,6 +29,9 @@ spec:
         - name: spring-config
           configMap:
             name: spring-app-config
+        - name: spring-logback
+          configMap:
+            name: spring-app-logback
         - name: filebeat-config
           configMap:
             name: filebeat-config
@@ -51,6 +54,8 @@ spec:
                 -XX:MaxRAMPercentage=75
             - name: SPRING_CONFIG_LOCATION
               value: "file:/config/application.yaml"
+            - name: LOG_FILE
+              value: "/logs/app.log"
             - name: HOSTNAME
               valueFrom:
                 fieldRef:
@@ -60,6 +65,10 @@ spec:
               mountPath: /logs
             - name: spring-config
               mountPath: /config
+              readOnly: true
+            - name: spring-logback
+              mountPath: /config-logback/logback-spring.xml
+              subPath: logback-spring.xml
               readOnly: true
           resources:
             requests:
